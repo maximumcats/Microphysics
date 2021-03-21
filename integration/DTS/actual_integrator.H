@@ -333,8 +333,6 @@ void actual_integrator (burn_t& state, Real dt)
 
                     Real alpha = f_plus(n);
                     Real beta = tau;
-                    Real alpha_prime = alpha - theta * state_0.xn[n-1] / beta + state_0.xn[n-1] / h;
-                    Real beta_prime = beta * h / ((1.0_rt - theta) * h + beta);
 
                     Real h_prime = beta * h / ((1.0_rt - theta) * h + beta);
 
