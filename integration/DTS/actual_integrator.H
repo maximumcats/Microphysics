@@ -11,12 +11,8 @@
 #include <extern_parameters.H>
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
-void clean_state (burn_t& state)
+void update_thermodynamics (burn_t& state)
 {
-    // Renormalize the abundances.
-
-    normalize_abundances_burn(state);
-
     // Evaluate the EOS to get T from e.
 
     eos_t eos_state;
@@ -30,6 +26,16 @@ void clean_state (burn_t& state)
     // Ensure that the temperature always stays within reasonable limits.
 
     state.T = amrex::min(MAX_TEMP, amrex::max(state.T, EOSData::mintemp));
+}
+
+AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+void clean_state (burn_t& state)
+{
+    // Renormalize the abundances and update the temperature.
+
+    normalize_abundances_burn(state);
+
+    update_thermodynamics(state);
 }
 
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
@@ -375,7 +381,9 @@ void actual_integrator (burn_t& state, Real dt)
 
                 state.e = state_0.e + 0.5_rt * dt_sub * (dedt_0 + dedt);
 
-                clean_state(state);
+                // Update the temperature given the new energy.
+
+                update_thermodynamics(state);
 
                 // If we've converged, we can stop.
 
@@ -409,6 +417,9 @@ void actual_integrator (burn_t& state, Real dt)
             }
 
             // If we made it to this point, we're done.
+
+            normalize_abundances_burn(state);
+
             break;
         }
 
