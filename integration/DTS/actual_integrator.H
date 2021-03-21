@@ -382,6 +382,8 @@ void actual_integrator (burn_t& state, Real dt)
                 state.e = state_0.e + 0.5_rt * dt_sub * (dedt_0 + dedt);
 
                 // Update the temperature given the new energy.
+                // In order to ensure we converge properly, we defer the normalization until
+                // after the end of the inner iteration loop.
 
                 update_thermodynamics(state);
 
