@@ -15,7 +15,7 @@ using namespace amrex;
 // call any specific initialization used by the EOS.
 
 AMREX_INLINE
-void eos_init (Real& small_temp, Real& small_dens)
+void eos_init (Real& small_temp_in, Real& small_dens_in)
 {
   // Allocate and set default values
 
@@ -40,11 +40,11 @@ void eos_init (Real& small_temp, Real& small_dens)
   actual_eos_init();
 
   // Set EOSData::min{temp,dens} and small_{temp,dens} to the maximum of the two
-  EOSData::mintemp = amrex::max(EOSData::mintemp, small_temp);
-  small_temp = amrex::max(small_temp, EOSData::mintemp);
+  EOSData::mintemp = amrex::max(EOSData::mintemp, small_temp_in);
+  small_temp_in = amrex::max(small_temp_in, EOSData::mintemp);
 
-  EOSData::mindens = amrex::max(EOSData::mindens, small_dens);
-  small_dens = amrex::max(small_dens, EOSData::mindens);
+  EOSData::mindens = amrex::max(EOSData::mindens, small_dens_in);
+  small_dens_in = amrex::max(small_dens_in, EOSData::mindens);
 
   EOSData::initialized = true;
 }
@@ -54,9 +54,9 @@ void eos_init (Real& small_temp, Real& small_dens)
 AMREX_INLINE
 void eos_init ()
 {
-    Real small_temp = -1.e200;
-    Real small_dens = -1.e200;
-    eos_init(small_temp, small_dens);
+    Real small_temp_tmp = -1.e200;
+    Real small_dens_tmp = -1.e200;
+    eos_init(small_temp_tmp, small_dens_tmp);
 }
 
 AMREX_INLINE
@@ -97,38 +97,46 @@ void reset_T (T& state)
 
 template <typename T>
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
-void reset_e (T& state, bool& has_been_reset) {
-
-  if (state.e < EOSData::mine || state.e > EOSData::maxe) {
-    eos_reset(state, has_been_reset);
-  }
+void reset_e (T& state, bool& has_been_reset)
+{
+    if constexpr (has_energy<T>::value) {
+        if (state.e < EOSData::mine || state.e > EOSData::maxe) {
+            eos_reset(state, has_been_reset);
+        }
+    }
 }
 
 template <typename T>
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
 void reset_h (T& state, bool& has_been_reset)
 {
-  if (state.h < EOSData::minh || state.h > EOSData::maxh) {
-    eos_reset(state, has_been_reset);
-  }
+    if constexpr (has_enthalpy<T>::value) {
+        if (state.h < EOSData::minh || state.h > EOSData::maxh) {
+            eos_reset(state, has_been_reset);
+        }
+    }
 }
 
 template <typename T>
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
 void reset_s (T& state, bool& has_been_reset)
 {
-  if (state.s < EOSData::mins || state.s > EOSData::maxs) {
-    eos_reset(state, has_been_reset);
-  }
+    if constexpr (has_entropy<T>::value) {
+        if (state.s < EOSData::mins || state.s > EOSData::maxs) {
+            eos_reset(state, has_been_reset);
+        }
+    }
 }
 
 template <typename T>
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
 void reset_p (T& state, bool& has_been_reset)
 {
-  if (state.p < EOSData::minp || state.p > EOSData::maxp) {
-    eos_reset(state, has_been_reset);
-  }
+    if constexpr (has_pressure<T>::value) {
+        if (state.p < EOSData::minp || state.p > EOSData::maxp) {
+            eos_reset(state, has_been_reset);
+        }
+    }
 }
 
 template <typename I, typename T>
@@ -245,57 +253,65 @@ template <typename T>
 AMREX_INLINE
 void check_e (T& state)
 {
-  if (state.e < EOSData::mine) {
-    print_state(state);
-    amrex::Error("EOS: e smaller than mine.");
+    if constexpr (has_energy<T>::value) {
+        if (state.e < EOSData::mine) {
+            print_state(state);
+            amrex::Error("EOS: e smaller than mine.");
 
-  } else if (state.e > EOSData::maxe) {
-    print_state(state);
-    amrex::Error("EOS: e greater than maxe.");
-  }
+        } else if (state.e > EOSData::maxe) {
+            print_state(state);
+            amrex::Error("EOS: e greater than maxe.");
+        }
+    }
 }
 
 template <typename T>
 AMREX_INLINE
 void check_h (T& state)
 {
-  if (state.h < EOSData::minh) {
-    print_state(state);
-    amrex::Error("EOS: h smaller than minh.");
+    if constexpr (has_enthalpy<T>::value) {
+        if (state.h < EOSData::minh) {
+            print_state(state);
+            amrex::Error("EOS: h smaller than minh.");
 
-  } else if (state.h > EOSData::maxh) {
-    print_state(state);
-    amrex::Error("EOS: h greater than maxh.");
+        } else if (state.h > EOSData::maxh) {
+            print_state(state);
+            amrex::Error("EOS: h greater than maxh.");
 
-  }
+        }
+    }
 }
 
 template <typename T>
 AMREX_INLINE
 void check_s (T& state)
 {
-  if (state.s < EOSData::mins) {
-    print_state(state);
-    amrex::Error("EOS: s smaller than mins.");
+    if constexpr (has_entropy<T>::value) {
+        if (state.s < EOSData::mins) {
+            print_state(state);
+            amrex::Error("EOS: s smaller than mins.");
 
-  } else if (state.s > EOSData::maxs) {
-    print_state(state);
-    amrex::Error("EOS: s greater than maxs.");
-  }
+        } else if (state.s > EOSData::maxs) {
+            print_state(state);
+            amrex::Error("EOS: s greater than maxs.");
+        }
+    }
 }
 
 template <typename T>
 AMREX_INLINE
 void check_p (T& state)
 {
-  if (state.p < EOSData::minp) {
-    print_state(state);
-    amrex::Error("EOS: p smaller than minp.");
+    if constexpr (has_pressure<T>::value) {
+        if (state.p < EOSData::minp) {
+            print_state(state);
+            amrex::Error("EOS: p smaller than minp.");
 
-  } else if (state.p > EOSData::maxp) {
-    print_state(state);
-    amrex::Error("EOS: p greater than maxp.");
-  }
+        } else if (state.p > EOSData::maxp) {
+            print_state(state);
+            amrex::Error("EOS: p greater than maxp.");
+        }
+    }
 }
 
 template <typename I, typename T>
@@ -381,7 +397,7 @@ template <typename I, typename T>
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
 void eos (const I input, T& state, bool use_raw_inputs = false)
 {
-  static_assert(std::is_same<I, eos_input_t>::value);
+  static_assert(std::is_same<I, eos_input_t>::value, "input must be an eos_input_t");
 
   // Input arguments
 

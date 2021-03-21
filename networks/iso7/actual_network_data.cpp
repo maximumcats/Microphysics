@@ -1,22 +1,17 @@
 #include <AMReX_Vector.H>
 #include <actual_network.H>
 
-namespace iso7
+namespace network
 {
     AMREX_GPU_MANAGED amrex::Array1D<amrex::Real, 1, NumSpec> bion;
     AMREX_GPU_MANAGED amrex::Array1D<amrex::Real, 1, NumSpec> mion;
     AMREX_GPU_MANAGED amrex::Array1D<amrex::Real, 1, NumSpec> wion;
 }
 
-namespace Rates
-{
-    amrex::Vector<std::string> names;
-}
-
 void actual_network_init()
 {
     using namespace Species;
-    using namespace iso7;
+    using namespace network;
 
     // Set the binding energy of the element
     bion(He4)  = 28.29603e0_rt;
@@ -36,28 +31,5 @@ void actual_network_init()
 
         // Common approximation to molar mass
         wion(i) = aion[i-1];
-    }
-
-    // set the names of the reaction rates
-    {
-        using namespace Rates;
-        names.resize(NumRates);
-        names[ircag-1]   = "rcag";
-        names[iroga-1]   = "roga";
-        names[ir3a-1]    = "r3a";
-        names[irg3a-1]   = "rg3a";    // inverse rate
-        names[ir1212-1]  = "r1212";
-        names[ir1216-1]  = "r1216";
-        names[ir1616-1]  = "r1616";
-        names[iroag-1]   = "roag";
-        names[irnega-1]  = "rnega";
-        names[irneag-1]  = "rneag";
-        names[irmgga-1]  = "rmgga";
-        names[irmgag-1]  = "rmgag";
-        names[irsiga-1]  = "rsiga";
-        names[ircaag-1]  = "rcaag";
-        names[irtiga-1]  = "rtiga";
-        names[irsi2ni-1] = "rsi2ni";
-        names[irni2si-1] = "rni2si";
     }
 }

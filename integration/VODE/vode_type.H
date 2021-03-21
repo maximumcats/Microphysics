@@ -11,9 +11,15 @@
 #include <actual_matrix.H>
 #endif
 
+#ifdef STRANG
+const int VODE_NEQS = NumSpec + 1;
+#endif
+
 #ifdef SIMPLIFIED_SDC
 const int VODE_NEQS = SVAR_EVOLVE;
-#else
+#endif
+
+#ifdef TRUE_SDC
 const int VODE_NEQS = NumSpec + 2;
 #endif
 
@@ -74,7 +80,7 @@ struct dvode_t
     // Jacobian
     SparseMatrix jac;
 
-#ifndef AMREX_USE_GPU
+#ifdef ALLOW_JACOBIAN_CACHING
     // Saved Jacobian
     SparseMatrix jac_save;
 #endif
@@ -84,7 +90,7 @@ struct dvode_t
     // Jacobian
     RArray2D jac;
 
-#ifndef AMREX_USE_GPU
+#ifdef ALLOW_JACOBIAN_CACHING
     // Saved Jacobian
     RArray2D jac_save;
 #endif
@@ -172,7 +178,8 @@ void print_state(dvode_t& dvode_state)
 
 #ifdef SIMPLIFIED_SDC
 #include <vode_type_simplified_sdc.H>
-#else
+#endif
+#ifdef STRANG
 #include <vode_type_strang.H>
 #endif
 

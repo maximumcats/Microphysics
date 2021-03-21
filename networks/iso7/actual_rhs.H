@@ -16,9 +16,9 @@
 #include <screen.H>
 #include <sneut5.H>
 #include <aprox_rates.H>
-#include <temperature_integration.H>
 #include <ArrayUtilities.H>
 #include <rhs_utilities.H>
+#include <jacobian_utilities.H>
 
 using namespace amrex;
 using namespace ArrayUtil;
@@ -46,6 +46,7 @@ void iso7tab(const Real btemp, const Real bden,
              Array1D<Real, 1, Rates::NumRates>& dratedt)
 {
     using namespace RateTable;
+    using namespace Rates;
 
     constexpr int mp = 4;
 
@@ -53,29 +54,6 @@ void iso7tab(const Real btemp, const Real bden,
     Real x, x1, x2, x3, x4;
     Real a, b, c, d, e, f, g, h, p, q;
     Real alfa, beta, gama, delt;
-    Array1D<Real, 1, Rates::NumRates> dtab;
-
-    // Set the density dependence array
-    {
-        using namespace Rates;
-        dtab(ircag)  = bden;
-        dtab(iroga)  = 1.0e0_rt;
-        dtab(ir3a)   = bden*bden;
-        dtab(irg3a)  = 1.0e0_rt;
-        dtab(ir1212) = bden;
-        dtab(ir1216) = bden;
-        dtab(ir1616) = bden;
-        dtab(iroag)  = bden;
-        dtab(irnega) = 1.0e0_rt;
-        dtab(irneag) = bden;
-        dtab(irmgga) = 1.0e0_rt;
-        dtab(irmgag) = bden;
-        dtab(irsiga) = 1.0e0_rt;
-        dtab(ircaag) = bden;
-        dtab(irtiga) = 1.0e0_rt;
-        dtab(irsi2ni) = 0.0e0_rt;
-        dtab(irni2si) = 0.0e0_rt;
-    }
 
     // hash locate
     iat = static_cast<int>((std::log10(btemp) - tab_tlo)/tab_tstp) + 1;
@@ -103,17 +81,113 @@ void iso7tab(const Real btemp, const Real bden,
     delt = -a*b*c/(g*p*q);
 
     // crank off the raw reaction rates
-    for (int j = 1; j <= Rates::NumRates; ++j) {
+    for (int rateindex = 1; rateindex <= Rates::NumRates; ++rateindex) {
 
-       rate(j) = (  alfa * rattab(j,iat  )
-                  + beta * rattab(j,iat+1)
-                  + gama * rattab(j,iat+2)
-                  + delt * rattab(j,iat+3) ) * dtab(j);
+        Real dtab = 0.0_rt;
 
-       dratedt(j) = (  alfa * drattabdt(j,iat  )
-                     + beta * drattabdt(j,iat+1)
-                     + gama * drattabdt(j,iat+2)
-                     + delt * drattabdt(j,iat+3) ) * dtab(j);
+        // Set the density dependence
+
+        switch (rateindex) {
+
+        case (C12_He4_to_O16_forward):
+            dtab = bden;
+            break;
+
+        case (C12_He4_to_O16_reverse):
+            dtab = 1.0e0_rt;
+            break;
+
+        case (He4_He4_He4_to_C12_forward):
+            dtab = bden * bden;
+            break;
+
+        case (He4_He4_He4_to_C12_reverse):
+            dtab = 1.0e0_rt;
+            break;
+
+        case (C12_C12_to_Ne20_He4_forward):
+            dtab = bden;
+            break;
+
+        case (C12_C12_to_Ne20_He4_reverse):
+            dtab = bden; // rate is zero in this net
+            break;
+
+        case (C12_O16_to_Mg24_He4_forward):
+            dtab = bden;
+            break;
+
+        case (C12_O16_to_Mg24_He4_reverse):
+            dtab = bden; // rate is zero in this net
+            break;
+
+        case (C12_O16_to_Si28_forward):
+            dtab = bden;
+            break;
+
+        case (C12_O16_to_Si28_reverse):
+            dtab = 1.0_rt; // rate is zero in this net
+            break;
+
+        case (O16_O16_to_Si28_He4_forward):
+            dtab = bden;
+            break;
+
+        case (O16_O16_to_Si28_He4_reverse):
+            dtab = bden; // rate is zero in this net
+            break;
+
+        case (O16_He4_to_Ne20_forward):
+            dtab = bden;
+            break;
+
+        case (O16_He4_to_Ne20_reverse):
+            dtab = 1.0e0_rt;
+            break;
+
+        case (Ne20_He4_to_Mg24_forward):
+            dtab = bden;
+            break;
+
+        case (Ne20_He4_to_Mg24_reverse):
+            dtab = 1.0e0_rt;
+            break;
+
+        case (Mg24_He4_to_Si28_forward):
+            dtab = bden;
+            break;
+
+        case (Mg24_He4_to_Si28_reverse):
+            dtab = 1.0e0_rt;
+            break;
+
+        case (Ca40_He4_to_Ti44_forward):
+            dtab = bden;
+            break;
+
+        case (Ca40_He4_to_Ti44_reverse):
+            dtab = 1.0e0_rt;
+            break;
+
+        case (Si28_7He4_to_Ni56_forward):
+            dtab = 0.0e0_rt;
+            break;
+
+        case (Si28_7He4_to_Ni56_reverse):
+            dtab = 0.0e0_rt;
+            break;
+
+        }
+
+        rate(rateindex) = (alfa * rattab(rateindex, iat  ) +
+                           beta * rattab(rateindex, iat+1) +
+                           gama * rattab(rateindex, iat+2) +
+                           delt * rattab(rateindex, iat+3)) * dtab;
+
+        dratedt(rateindex) = (alfa * drattabdt(rateindex, iat  ) +
+                              beta * drattabdt(rateindex, iat+1) +
+                              gama * drattabdt(rateindex, iat+2) +
+                              delt * drattabdt(rateindex, iat+3)) * dtab;
 
     }
 }
@@ -146,54 +220,54 @@ void iso7rat(const Real btemp, const Real bden,
     if (use_c12ag_deboer17) {
         // deboer + 2017 c12(a,g)o16 rate
         rate_c12ag_deboer17(tf,bden,
-                            rate(ircag),dratedt(ircag),
-                            rate(iroga),dratedt(iroga));
+                            rate(C12_He4_to_O16_forward),dratedt(C12_He4_to_O16_forward),
+                            rate(C12_He4_to_O16_reverse),dratedt(C12_He4_to_O16_reverse));
     } else {
         // 1.7 times cf88 c12(a,g)o16 rate
         rate_c12ag(tf,bden,
-                   rate(ircag),dratedt(ircag),
-                   rate(iroga),dratedt(iroga));
+                   rate(C12_He4_to_O16_forward),dratedt(C12_He4_to_O16_forward),
+                   rate(C12_He4_to_O16_reverse),dratedt(C12_He4_to_O16_reverse));
     }
 
     // triple alpha to c12
     rate_triplealf(tf,bden,
-                   rate(ir3a),dratedt(ir3a),
-                   rate(irg3a),dratedt(irg3a));
+                   rate(He4_He4_He4_to_C12_forward),dratedt(He4_He4_He4_to_C12_forward),
+                   rate(He4_He4_He4_to_C12_reverse),dratedt(He4_He4_He4_to_C12_reverse));
 
     // c12 + c12
     rate_c12c12(tf,bden,
-                rate(ir1212),dratedt(ir1212),
+                rate(C12_C12_to_Ne20_He4_forward),dratedt(C12_C12_to_Ne20_He4_forward),
                 rrate,drratedt);
 
     // c12 + o16
     rate_c12o16(tf,bden,
-                rate(ir1216),dratedt(ir1216),
+                rate(C12_O16_to_Mg24_He4_forward),dratedt(C12_O16_to_Mg24_He4_forward),
                 rrate,drratedt);
 
     // 16o + 16o
     rate_o16o16(tf,bden,
-                rate(ir1616),dratedt(ir1616),
+                rate(O16_O16_to_Si28_He4_forward),dratedt(O16_O16_to_Si28_He4_forward),
                 rrate,drratedt);
 
     // o16(a,g)ne20
     rate_o16ag(tf,bden,
-               rate(iroag),dratedt(iroag),
-               rate(irnega),dratedt(irnega));
+               rate(O16_He4_to_Ne20_forward),dratedt(O16_He4_to_Ne20_forward),
+               rate(O16_He4_to_Ne20_reverse),dratedt(O16_He4_to_Ne20_reverse));
 
     // ne20(a,g)mg24
     rate_ne20ag(tf,bden,
-                rate(irneag),dratedt(irneag),
-                rate(irmgga),dratedt(irmgga));
+                rate(Ne20_He4_to_Mg24_forward),dratedt(Ne20_He4_to_Mg24_forward),
+                rate(Ne20_He4_to_Mg24_reverse),dratedt(Ne20_He4_to_Mg24_reverse));
 
     // mg24(a,g)si28
     rate_mg24ag(tf,bden,
-                rate(irmgag),dratedt(irmgag),
-                rate(irsiga),dratedt(irsiga));
+                rate(Mg24_He4_to_Si28_forward),dratedt(Mg24_He4_to_Si28_forward),
+                rate(Mg24_He4_to_Si28_reverse),dratedt(Mg24_He4_to_Si28_reverse));
 
     // ca40(a,g)ti44
     rate_ca40ag(tf,bden,
-                rate(ircaag),dratedt(ircaag),
-                rate(irtiga),dratedt(irtiga));
+                rate(Ca40_He4_to_Ti44_forward),dratedt(Ca40_He4_to_Ti44_forward),
+                rate(Ca40_He4_to_Ti44_reverse),dratedt(Ca40_He4_to_Ti44_reverse));
 
 }
 
@@ -280,8 +354,13 @@ void screen_iso7(const Real btemp, const Real bden,
     sc3a   = sc1a * sc2a;
     sc3adt = sc1adt*sc2a + sc1a*sc2adt;
 
-    dratedt(ir3a) = dratedt(ir3a) * sc3a + rate(ir3a) * sc3adt;
-    rate(ir3a)    = rate(ir3a) * sc3a;
+    dratedt(He4_He4_He4_to_C12_forward) = dratedt(He4_He4_He4_to_C12_forward) * sc3a + rate(He4_He4_He4_to_C12_forward) * sc3adt;
+    rate(He4_He4_He4_to_C12_forward)    = rate(He4_He4_He4_to_C12_forward) * sc3a;
+
+    // Identical particle factor (He4 + He4 + He4)
+
+    rate(He4_He4_He4_to_C12_forward)    *= 1.0_rt / 6.0_rt;
+    dratedt(He4_He4_He4_to_C12_forward) *= 1.0_rt / 6.0_rt;
 
     // c12 to o16
     jscr++;
@@ -289,8 +368,8 @@ void screen_iso7(const Real btemp, const Real bden,
             zion[C12-1], aion[C12-1], zion[He4-1], aion[He4-1],
             sc1a,sc1adt,sc1add);
 
-    dratedt(ircag)  = dratedt(ircag) * sc1a + rate(ircag) * sc1adt;
-    rate(ircag)     = rate(ircag) * sc1a;
+    dratedt(C12_He4_to_O16_forward)  = dratedt(C12_He4_to_O16_forward) * sc1a + rate(C12_He4_to_O16_forward) * sc1adt;
+    rate(C12_He4_to_O16_forward)     = rate(C12_He4_to_O16_forward) * sc1a;
 
     // c12 + c12
     jscr++;
@@ -298,8 +377,13 @@ void screen_iso7(const Real btemp, const Real bden,
             zion[C12-1], aion[C12-1], zion[C12-1], aion[C12-1],
             sc1a,sc1adt,sc1add);
 
-    dratedt(ir1212) = dratedt(ir1212) * sc1a + rate(ir1212) * sc1adt;
-    rate(ir1212)    = rate(ir1212) * sc1a;
+    dratedt(C12_C12_to_Ne20_He4_forward) = dratedt(C12_C12_to_Ne20_He4_forward) * sc1a + rate(C12_C12_to_Ne20_He4_forward) * sc1adt;
+    rate(C12_C12_to_Ne20_He4_forward)    = rate(C12_C12_to_Ne20_He4_forward) * sc1a;
+
+    // Identical particle factor (C12 + C12)
+
+    rate(C12_C12_to_Ne20_He4_forward)    *= 0.5_rt;
+    dratedt(C12_C12_to_Ne20_He4_forward) *= 0.5_rt;
 
     // c12 + o16
     jscr++;
@@ -307,8 +391,16 @@ void screen_iso7(const Real btemp, const Real bden,
             zion[C12-1], aion[C12-1], zion[O16-1], aion[O16-1],
             sc1a,sc1adt,sc1add);
 
-    dratedt(ir1216) = dratedt(ir1216) * sc1a + rate(ir1216) * sc1adt;
-    rate(ir1216)    = rate(ir1216) * sc1a;
+    dratedt(C12_O16_to_Mg24_He4_forward) = dratedt(C12_O16_to_Mg24_He4_forward) * sc1a + rate(C12_O16_to_Mg24_He4_forward) * sc1adt;
+    rate(C12_O16_to_Mg24_He4_forward)    = rate(C12_O16_to_Mg24_He4_forward) * sc1a;
+
+    // Equal probability branching ratio between (Mg24 + He4) and (Si28) endpoints
+
+    rate(C12_O16_to_Mg24_He4_forward) *= 0.5;
+    dratedt(C12_O16_to_Mg24_He4_forward) *= 0.5;
+
+    rate(C12_O16_to_Si28_forward) = rate(C12_O16_to_Mg24_He4_forward);
+    dratedt(C12_O16_to_Si28_forward) = dratedt(C12_O16_to_Mg24_He4_forward);
 
     // o16 + o16
     jscr++;
@@ -316,8 +408,13 @@ void screen_iso7(const Real btemp, const Real bden,
             zion[O16-1], aion[O16-1], zion[O16-1], aion[O16-1],
             sc1a,sc1adt,sc1add);
 
-    dratedt(ir1616) = dratedt(ir1616) * sc1a + rate(ir1616) * sc1adt;
-    rate(ir1616)    = rate(ir1616) * sc1a;
+    dratedt(O16_O16_to_Si28_He4_forward) = dratedt(O16_O16_to_Si28_He4_forward) * sc1a + rate(O16_O16_to_Si28_He4_forward) * sc1adt;
+    rate(O16_O16_to_Si28_He4_forward)    = rate(O16_O16_to_Si28_He4_forward) * sc1a;
+
+    // Identical particle factor (O16 + O16)
+
+    rate(O16_O16_to_Si28_He4_forward)    *= 0.5_rt;
+    dratedt(O16_O16_to_Si28_He4_forward) *= 0.5_rt;
 
     // o16 to ne20
     jscr++;
@@ -325,8 +422,8 @@ void screen_iso7(const Real btemp, const Real bden,
             zion[O16-1], aion[O16-1], zion[He4-1], aion[He4-1],
             sc1a,sc1adt,sc1add);
 
-    dratedt(iroag) = dratedt(iroag) * sc1a + rate(iroag) * sc1adt;
-    rate(iroag)    = rate(iroag) * sc1a;
+    dratedt(O16_He4_to_Ne20_forward) = dratedt(O16_He4_to_Ne20_forward) * sc1a + rate(O16_He4_to_Ne20_forward) * sc1adt;
+    rate(O16_He4_to_Ne20_forward)    = rate(O16_He4_to_Ne20_forward) * sc1a;
 
     // ne20 to mg24
     jscr++;
@@ -334,8 +431,8 @@ void screen_iso7(const Real btemp, const Real bden,
             zion[Ne20-1], aion[Ne20-1], zion[He4-1], aion[He4-1],
             sc1a,sc1adt,sc1add);
 
-    dratedt(irneag) = dratedt(irneag) * sc1a + rate(irneag) * sc1adt;
-    rate(irneag)    = rate(irneag) * sc1a;
+    dratedt(Ne20_He4_to_Mg24_forward) = dratedt(Ne20_He4_to_Mg24_forward) * sc1a + rate(Ne20_He4_to_Mg24_forward) * sc1adt;
+    rate(Ne20_He4_to_Mg24_forward)    = rate(Ne20_He4_to_Mg24_forward) * sc1a;
 
     // mg24 to si28
     jscr++;
@@ -343,8 +440,8 @@ void screen_iso7(const Real btemp, const Real bden,
             zion[Mg24-1], aion[Mg24-1], zion[He4-1], aion[He4-1],
             sc1a,sc1adt,sc1add);
 
-    dratedt(irmgag) = dratedt(irmgag) * sc1a + rate(irmgag) * sc1adt;
-    rate(irmgag)    = rate(irmgag) * sc1a;
+    dratedt(Mg24_He4_to_Si28_forward) = dratedt(Mg24_He4_to_Si28_forward) * sc1a + rate(Mg24_He4_to_Si28_forward) * sc1adt;
+    rate(Mg24_He4_to_Si28_forward)    = rate(Mg24_He4_to_Si28_forward) * sc1a;
 
     // ca40 to ti44
     jscr++;
@@ -352,8 +449,8 @@ void screen_iso7(const Real btemp, const Real bden,
             20.0_rt, 40.0_rt, zion[He4-1], aion[He4-1],
             sc1a,sc1adt,sc1add);
 
-    dratedt(ircaag) = dratedt(ircaag) * sc1a + rate(ircaag) * sc1adt;
-    rate(ircaag)    = rate(ircaag) * sc1a;
+    dratedt(Ca40_He4_to_Ti44_forward) = dratedt(Ca40_He4_to_Ti44_forward) * sc1a + rate(Ca40_He4_to_Ti44_forward) * sc1adt;
+    rate(Ca40_He4_to_Ti44_forward)    = rate(Ca40_He4_to_Ti44_forward) * sc1a;
 
     /*
     the publication, timmes, woosley & hoffman apjs, 129, 377
@@ -376,24 +473,23 @@ void screen_iso7(const Real btemp, const Real bden,
 
        denom     = std::pow(bden * y(He4), 3.0e0_rt);
 
-       rate(irsi2ni)     = yeff_ca40*denom*rate(ircaag)*y(Si28);
-       dratedY(He4, irsi2ni) = 3.0e0_rt * rate(irsi2ni)/y(He4);
-       dratedY(Si28, irsi2ni) = yeff_ca40*denom*rate(ircaag);
-       dratedt(irsi2ni)  = (yeff_ca40dt*rate(ircaag)
-                          + yeff_ca40*dratedt(ircaag))*denom*y(Si28)*1.0e-9_rt;
+       rate(Si28_7He4_to_Ni56_forward)     = yeff_ca40*denom*rate(Ca40_He4_to_Ti44_forward);
+       dratedY(He4, Si28_7He4_to_Ni56_forward) = 3.0e0_rt * rate(Si28_7He4_to_Ni56_forward)/y(He4);
+       dratedt(Si28_7He4_to_Ni56_forward)  = (yeff_ca40dt*rate(Ca40_He4_to_Ti44_forward)
+                                              + yeff_ca40*dratedt(Ca40_He4_to_Ti44_forward))*denom*1.0e-9_rt;
 
        if (denom != 0.0_rt) {
 
           zz     = 1.0e0_rt/denom;
-          rate(irni2si) = amrex::min(1.0e10_rt,yeff_ti44*rate(irtiga)*zz);
+          rate(Si28_7He4_to_Ni56_reverse) = amrex::min(1.0e10_rt,yeff_ti44*rate(Ca40_He4_to_Ti44_reverse)*zz);
 
-          if (rate(irni2si) == 1.0e10_rt) {
-             dratedY(He4, irni2si) = 0.0e0_rt;
-             dratedt(irni2si)  = 0.0e0_rt;
+          if (rate(Si28_7He4_to_Ni56_reverse) == 1.0e10_rt) {
+             dratedY(He4, Si28_7He4_to_Ni56_reverse) = 0.0e0_rt;
+             dratedt(Si28_7He4_to_Ni56_reverse)  = 0.0e0_rt;
           } else {
-             dratedY(He4, irni2si) = -3.0e0_rt * rate(irni2si)/y(He4);
-             dratedt(irni2si)  = (yeff_ti44dt*rate(irtiga)
-                                + yeff_ti44*dratedt(irtiga))*zz*1.0e-9_rt;
+             dratedY(He4, Si28_7He4_to_Ni56_reverse) = -3.0e0_rt * rate(Si28_7He4_to_Ni56_reverse)/y(He4);
+             dratedt(Si28_7He4_to_Ni56_reverse)  = (yeff_ti44dt*rate(Ca40_He4_to_Ti44_reverse)
+                                                    + yeff_ti44*dratedt(Ca40_He4_to_Ti44_reverse))*zz*1.0e-9_rt;
           }
 
        }
@@ -486,44 +582,24 @@ void dfdy_isotopes_iso7(Array1D<Real, 1, NumSpec> const& y,
     using namespace Species;
     using namespace Rates;
 
+    auto spec_jac = RHS::species_jac(state, rr(1));
+
+    for (int spec1 = 1; spec1 <= NumSpec; ++spec1) {
+        for (int spec2 = 1; spec2 <= NumSpec; ++spec2) {
+            jac(spec1, spec2) = spec_jac(spec1, spec2);
+        }
+    }
+
     for (int spec1 = 1; spec1 <= NumSpec; ++spec1) {
 
         for (int spec2 = 1; spec2 <= NumSpec; ++spec2) {
 
-            // d(spec1) / d(spec2)
-
-            Array1D<Real, 1, Rates::NumRates> b = {0.0};
-
-            int b_ctr = 0;
+            // Now handle the terms that include a d(rate)/dY contribution.
 
             for (int rate = 1; rate <= NumRates; ++rate) {
                 jac_t jac_data = RHS::jac_data(spec1, spec2, rate);
 
-                if (std::abs(jac_data.prefactor) > 0.0_rt) {
-                    ++b_ctr;
-
-                    Real term = jac_data.prefactor;
-
-                    if (jac_data.specindex1 >= 0) {
-                        term *= y(jac_data.specindex1);
-                    }
-
-                    if (jac_data.specindex2 >= 0) {
-                        term *= y(jac_data.specindex2);
-                    }
-
-                    if (jac_data.specindex3 >= 0) {
-                        term *= y(jac_data.specindex3);
-                    }
-
-                    term *= rr(1).rates(rate);
-
-                    b(b_ctr) = term;
-                }
-
                 if (std::abs(jac_data.rate_prefactor) > 0.0_rt) {
-                    ++b_ctr;
-
                     Real term = jac_data.rate_prefactor;
 
                     if (jac_data.rate_specindex1 >= 0) {
@@ -540,11 +616,9 @@ void dfdy_isotopes_iso7(Array1D<Real, 1, NumSpec> const& y,
 
                     term *= rr(2 + spec2).rates(rate);
 
-                    b(b_ctr) = term;
+                    jac(spec1, spec2) += term;
                 }
             }
-
-            jac(spec1, spec2) = esum<Rates::NumRates>(b);
 
         }
 
@@ -557,7 +631,7 @@ AMREX_GPU_HOST_DEVICE AMREX_INLINE
 void ener_gener_rate(T const& dydt, Real& enuc)
 {
 
-    using namespace iso7;
+    using namespace network;
 
     // Computes the instantaneous energy generation rate
 
@@ -574,37 +648,6 @@ void ener_gener_rate(T const& dydt, Real& enuc)
 }
 
 
-// This version adds the neutrino losses directly
-// and is intended for use in the RHS only.
-AMREX_GPU_HOST_DEVICE AMREX_INLINE
-Real ener_rhs(const burn_t& state, Array1D<Real, 1, NumSpec>& dydt)
-{
-    using namespace iso7;
-
-    Real Xdot = 0.0_rt;
-
-    // Sum the mass fraction time derivatives
-
-    for (int i = 1; i <= NumSpec; ++i) {
-        Xdot += dydt(i) * mion(i);
-    }
-
-    // This is basically e = m c**2
-
-    Real dedt = Xdot * C::Legacy::enuc_conv2;
-
-    // Get the neutrino losses
-
-    Real sneut, dsneutdt, dsneutdd, snuda, snudz;
-    sneut5(state.T, state.rho, state.abar, state.zbar, sneut, dsneutdt, dsneutdd, snuda, snudz);
-
-    dedt -= sneut;
-
-    return dedt;
-}
-
-
-
 AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
 void actual_rhs(burn_t& state, Array1D<Real, 1, neqs>& ydot)
 {
@@ -615,7 +658,7 @@ void actual_rhs(burn_t& state, Array1D<Real, 1, neqs>& ydot)
 
     // Call the RHS to get dydt
 
-    Array1D<Real, 1, NumSpec> spec_rhs = species_rhs(state, rr);
+    Array1D<Real, 1, NumSpec> spec_rhs = RHS::species_rhs(state, rr);
 
     for (int n = 1; n <= NumSpec; ++n) {
         ydot(n) = spec_rhs(n);
@@ -623,13 +666,7 @@ void actual_rhs(burn_t& state, Array1D<Real, 1, neqs>& ydot)
 
     // Instantaneous energy generation rate
 
-    ydot(net_ienuc) = ener_rhs(state, spec_rhs);
-
-#ifndef SIMPLIFIED_SDC
-    // Append the temperature equation
-
-    ydot(net_itemp) = temperature_rhs(state, ydot(net_ienuc));
-#endif
+    ydot(net_ienuc) = RHS::ener_rhs(state, spec_rhs);
 }
 
 
@@ -682,24 +719,22 @@ void actual_jac(burn_t& state, MatrixType& jac)
        jac.add(net_ienuc, j, -b1);
     }
 
-    // Evaluate the Jacobian elements with respect to temperature by
-    // calling the RHS using d(rate) / dT
+    // Evaluate the Jacobian elements with respect to energy by
+    // calling the RHS using d(rate) / dT and then transform them
+    // to our energy integration variable.
 
     const int index_rate = 2;
 
-    Array1D<Real, 1, NumSpec> yderivs = species_rhs(state, rr(index_rate));
+    Array1D<Real, 1, NumSpec> yderivs = RHS::species_rhs(state, rr(index_rate));
 
     for (int i = 1; i <= NumSpec; ++i) {
-        jac(i,net_itemp) = yderivs(i);
+        jac(i, net_ienuc) = temperature_to_energy_jacobian(state, yderivs(i));
     }
 
-    ener_gener_rate(yderivs, jac(net_ienuc,net_itemp));
-
-    jac.add(net_ienuc, net_itemp, -dsneutdt);
-
-    // Temperature Jacobian elements
-
-    temperature_jac(state, jac);
+    Real jac_e_T;
+    ener_gener_rate(yderivs, jac_e_T);
+    jac_e_T -= dsneutdt;
+    jac(net_ienuc, net_ienuc) = temperature_to_energy_jacobian(state, jac_e_T);
 
 }
 
