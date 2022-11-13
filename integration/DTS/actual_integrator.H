@@ -295,7 +295,9 @@ void actual_integrator (burn_t& state, Real dt)
             Real max_diff = 0.0_rt;
 
             for (int n = 1; n <= NumSpec; ++n) {
-                max_diff = amrex::max(max_diff, std::abs(state.xn[n-1] - state_0.xn[n-1]) / state_0.xn[n-1]);
+                if (state_0.xn[n-1] >= atol_spec) {
+                    max_diff = amrex::max(max_diff, std::abs(state.xn[n-1] - state_0.xn[n-1]) / state_0.xn[n-1]);
+                }
             }
 
             if (max_diff > maximum_timestep_change_factor) {
