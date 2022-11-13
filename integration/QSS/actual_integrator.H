@@ -163,7 +163,7 @@ void evaluate_rhs (burn_t& state, Array1D<Real, 1, NumSpec>& f_minus, Array1D<Re
         f_minus(spec) *= aion[spec - 1];
     }
  
-    // Determine the corresponding energy and temperature RHS.
+    // Determine the corresponding energy RHS.
 
     Array1D<Real, 1, NumSpec> dYdt;
     for (int n = 1; n <= NumSpec; ++n) {
@@ -440,24 +440,21 @@ void actual_integrator (burn_t& state, Real dt)
                 max_diff = amrex::max(max_diff, dX / state.xn[n-1]);
             }
 
-            Real de = std::abs(state.e - predictor_state.e);
-            max_diff = amrex::max(max_diff, de / state.e);
-
             // If the relative diff was smaller than the requested tolerance factor, we're done.
             // Otherwise, cut dt and try again.
 
-            if (max_diff <= maximum_timestep_change_factor - 1.0_rt) {
+            if (max_diff <= predictor_corrector_tolerance) {
                 break;
             }
             else {
                 // Determine a new timestep as indicated in Mott and Oran (2001), Equation 50.
-                // In our notation, \epsilon == (maximum_timestep_change_factor - 1.0) and
-                // \varepsilon == \epsilon * dt_error_tolerance, with dt_error_tolerance < 1.
+                // In our notation, \epsilon == predictor_corrector_tolerance and
+                // \varepsilon == \epsilon * tolerance_safety_factor, with tolerance_safety_factor > 1.
                 // Note that Mott seems to suggest approximating the square root using Newton's
                 // method; given the expense of our RHS it seems unlikely that this would make
                 // a performance difference, but it is a potential optimization.
 
-                Real sigma = max_diff / (dt_error_tolerance * (maximum_timestep_change_factor - 1.0_rt));
+                Real sigma = max_diff / (predictor_corrector_tolerance / tolerance_safety_factor);
                 dt_sub *= (1.0_rt / std::sqrt(sigma) + 0.005);
             }
         }
@@ -477,7 +474,9 @@ void actual_integrator (burn_t& state, Real dt)
         state.success = false;
     }
 
-#ifndef AMREX_USE_CUDA
+    state.time = t;
+
+#ifndef AMREX_USE_GPU
     if (burner_verbose) {
         // Print out some integration statistics, if desired.
         std::cout <<  "integration summary: " << std::endl;
@@ -491,7 +490,7 @@ void actual_integrator (burn_t& state, Real dt)
     // If we failed, print out the current state of the integration.
 
     if (!state.success) {
-#ifndef AMREX_USE_CUDA
+#ifndef AMREX_USE_GPU
         std::cout << "ERROR: integration failed in net" << std::endl;
         std::cout << "time = " << t << std::endl;
         std::cout << "dens = " << state.rho << std::endl;
