@@ -2815,7 +2815,7 @@ void actual_eos_init ()
 
         // Compare tabular value with calculated value
 
-        idx = j * imax + i;
+        idx = 9 * (j * imax + i);
         std::cout << "Tabular F = " << f_local[idx] << " computed F = " << state.e - state.T * state.s << "\n";
 
         // read the pressure derivative with density table
