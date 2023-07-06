@@ -2780,8 +2780,8 @@ void actual_eos_init ()
         int j = 121;
         int i = 401;
 
-        state.abar = 4.0_rt;
-        state.zbar = 2.0_rt;
+        state.abar = 1.0_rt;
+        state.zbar = 1.0_rt;
         state.T = t[j];
         state.rho = d[i];
         Real ytot1   = 1.0e0_rt / state.abar;
