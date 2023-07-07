@@ -40,6 +40,11 @@ using namespace eos_rp;
 
 const std::string eos_name = "helmholtz";
 
+struct eos_timmes_t : eos_extra_t {
+    Real dpdrdT{};
+    Real dsdrdT{};
+};
+
 // quintic hermite polynomial functions
 // psi0 and its derivatives
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
@@ -591,8 +596,6 @@ Real etages (Real xni, Real zbar, Real temp)
         x = cpf3 * beta * (1.0_rt + 0.75_rt * beta) * std::exp(-1.0_rt / beta);
     }
 
-    std::cout << "x = " << x << " beta = " << beta << " kt = " << kt << " mecc = " << mecc << " xne = " << xne << "\n";
-    
     if (x >= xne) {
         eta = -0.5_rt;
     }
@@ -1540,6 +1543,18 @@ void xneroot (int mode, T& state, Real aa, Real& f, Real& df)
     state.p = pele + ppos;
     state.e = eele + epos;
     state.s = sele + spos;
+
+    state.dpdT = dpposdt + dpeledt;
+    state.dpdr = dpposdd + dpeledd;
+
+    state.dsdT = dsposdt + dseledt;
+    state.dsdr = dsposdd + dseledd;
+
+    state.dedT = deposdt + deeledt;
+    state.dedr = deposdd + deeledd;
+
+    state.dpdrdT = dpposddt + dpeleddt;
+    state.dsdrdT = dsposddt + dseleddt;
 }
 
 template <typename T>
@@ -2772,51 +2787,64 @@ void actual_eos_init ()
                 data >> f_local[idx] >> f_local[idx+3] >> f_local[idx+1]
                      >> f_local[idx+4] >> f_local[idx+2] >> f_local[idx+5]
                      >> f_local[idx+6] >> f_local[idx+7] >> f_local[idx+8];
+
+                eos_timmes_t state;
+
+                state.abar = 1.0_rt;
+                state.zbar = 1.0_rt;
+                state.T = t[j];
+                state.rho = d[i];
+                Real ytot1   = 1.0e0_rt / state.abar;
+                Real xni     = avo_eos * ytot1 * d[i];
+                Real eta_guess = etages(xni, state.zbar, t[j]);
+
+                bool eosfail = false;
+
+                Real fk, dfk;
+                for (int n = 0; n < 100; ++n) {
+                    xneroot(0, state, eta_guess, fk, dfk);
+
+                    if (dfk == 0.0_rt) {
+                        amrex::Error("Helmholtz EOS table convergence failure");
+                    }
+                    Real ratio = fk / dfk;
+                    Real eta_guess_new = eta_guess - ratio;
+                    Real z = std::abs((eta_guess_new - eta_guess) / eta_guess);
+                    eta_guess = eta_guess_new;
+                    const Real eostol = 1.0e-13_rt;
+                    const Real fpmin = 1.0e-14_rt;
+                    if (z < eostol || std::abs(ratio) <= fpmin) {
+                        break;
+                    }
+                }
+
+                // with the converged values, get the energy, pressure, and entropy
+                xneroot(1, state, eta_guess, fk, dfk);
+
+                // Fill in free energy table based on Equation 19 in Timmes and Swesty (1999)
+
+                // f
+                f_local[idx  ] = state.e - state.T * state.s;
+                // df/dT
+                f_local[idx+1] = -state.s;
+                // d^2f/dT^2
+                f_local[idx+2] = -state.dsdT;
+                // df/drho
+                f_local[idx+3] = state.p / (state.rho * state.rho);
+                // d^2f/drho^2
+                f_local[idx+4] = (state.rho * state.dpdr - 2.0_rt * state.p) / (state.rho * state.rho * state.rho);
+                // d^2f/drhodT
+                f_local[idx+5] = -state.dsdr;
+                // d^3f/drho^2dT
+                f_local[idx+6] = (state.rho * state.dpdrdT - 2.0_rt * state.dpdT) / (state.rho * state.rho * state.rho);
+                // d^3f/drhodT^2
+                f_local[idx+7] = -state.dsdrdT;
+                // d^4f/drho^2dT^2
+                //f_local[idx+8] = 
+
                 idx += 9;
             }
         }
-
-        eos_t state;
-        int j = 121;
-        int i = 401;
-
-        state.abar = 1.0_rt;
-        state.zbar = 1.0_rt;
-        state.T = t[j];
-        state.rho = d[i];
-        Real ytot1   = 1.0e0_rt / state.abar;
-        Real xni     = avo_eos * ytot1 * d[i];
-        Real eta_guess = etages(xni, state.zbar, t[j]);
-        std::cout << state.T << " " << state.rho << " " << xni << " " << eta_guess << "\n";
-
-        bool eosfail = false;
-
-        Real fk, dfk;
-        for (int i = 0; i < 100; ++i) {
-            xneroot(0, state, eta_guess, fk, dfk);
-
-            if (dfk == 0.0_rt) {
-                std::cout << "fail\n";
-            }
-            Real ratio = fk / dfk;
-            Real eta_guess_new = eta_guess - ratio;
-            Real z = std::abs((eta_guess_new - eta_guess) / eta_guess);
-            eta_guess = eta_guess_new;
-            const Real eostol = 1.0e-13_rt;
-            const Real fpmin = 1.0e-14_rt;
-            if (z < eostol || std::abs(ratio) <= fpmin) {
-                std::cout << "done " << eta_guess << " " << fk << " " << dfk << "\n";
-                break;
-            }
-        }
-
-        // with the converged values, get the energy, pressure, and entropy
-        xneroot(1, state, eta_guess, fk, dfk);
-
-        // Compare tabular value with calculated value
-
-        idx = 9 * (j * imax + i);
-        std::cout << "Tabular F = " << f_local[idx] << " computed F = " << state.e - state.T * state.s << "\n";
 
         // read the pressure derivative with density table
         idx = 0;
