@@ -1557,6 +1557,46 @@ void xneroot (int mode, T& state, Real aa, Real& f, Real& df)
     state.dsdrdT = dsposddt + dseleddt;
 }
 
+AMREX_GPU_HOST_DEVICE AMREX_INLINE
+eos_timmes_t timmes_eos (Real rho, Real T)
+{
+    eos_timmes_t state;
+
+    state.abar = 1.0_rt;
+    state.zbar = 1.0_rt;
+    state.T = T;
+    state.rho = rho;
+
+    Real ytot1   = 1.0e0_rt / state.abar;
+    Real xni     = helmholtz::avo_eos * ytot1 * rho;
+    Real eta_guess = etages(xni, state.zbar, T);
+
+    bool eosfail = false;
+
+    Real fk, dfk;
+    for (int n = 0; n < 100; ++n) {
+        xneroot(0, state, eta_guess, fk, dfk);
+
+        if (dfk == 0.0_rt) {
+            amrex::Error("Helmholtz EOS table convergence failure");
+        }
+        Real ratio = fk / dfk;
+        Real eta_guess_new = eta_guess - ratio;
+        Real z = std::abs((eta_guess_new - eta_guess) / eta_guess);
+        eta_guess = eta_guess_new;
+        const Real eostol = 1.0e-13_rt;
+        const Real fpmin = 1.0e-14_rt;
+        if (z < eostol || std::abs(ratio) <= fpmin) {
+            break;
+        }
+    }
+
+    // with the converged values, get the energy, pressure, and entropy
+    xneroot(1, state, eta_guess, fk, dfk);
+
+    return state;
+}
+
 template <typename T>
 AMREX_GPU_HOST_DEVICE AMREX_INLINE
 void apply_electrons (T& state)
@@ -2781,45 +2821,20 @@ void actual_eos_init ()
         // read in the free energy table
         int idx = 0;
         for (int j = 0; j < jmax; ++j) {
+            Real T = t[j];
             for (int i = 0; i < imax; ++i) {
+                Real rho = d[i];
+
                 std::getline(table, line);
                 std::istringstream data(line);
                 data >> f_local[idx] >> f_local[idx+3] >> f_local[idx+1]
                      >> f_local[idx+4] >> f_local[idx+2] >> f_local[idx+5]
                      >> f_local[idx+6] >> f_local[idx+7] >> f_local[idx+8];
 
-                eos_timmes_t state;
+                eos_timmes_t state = timmes_eos(rho, T);
 
-                state.abar = 1.0_rt;
-                state.zbar = 1.0_rt;
-                state.T = t[j];
-                state.rho = d[i];
-                Real ytot1   = 1.0e0_rt / state.abar;
-                Real xni     = avo_eos * ytot1 * d[i];
-                Real eta_guess = etages(xni, state.zbar, t[j]);
-
-                bool eosfail = false;
-
-                Real fk, dfk;
-                for (int n = 0; n < 100; ++n) {
-                    xneroot(0, state, eta_guess, fk, dfk);
-
-                    if (dfk == 0.0_rt) {
-                        amrex::Error("Helmholtz EOS table convergence failure");
-                    }
-                    Real ratio = fk / dfk;
-                    Real eta_guess_new = eta_guess - ratio;
-                    Real z = std::abs((eta_guess_new - eta_guess) / eta_guess);
-                    eta_guess = eta_guess_new;
-                    const Real eostol = 1.0e-13_rt;
-                    const Real fpmin = 1.0e-14_rt;
-                    if (z < eostol || std::abs(ratio) <= fpmin) {
-                        break;
-                    }
-                }
-
-                // with the converged values, get the energy, pressure, and entropy
-                xneroot(1, state, eta_guess, fk, dfk);
+                Real drho = std::sqrt(std::numeric_limits<Real>::epsilon());
+                eos_timmes_t state_dr = timmes_eos(rho + drho, T);
 
                 // Fill in free energy table based on Equation 19 in Timmes and Swesty (1999)
 
@@ -2840,7 +2855,7 @@ void actual_eos_init ()
                 // d^3f/drhodT^2
                 f_local[idx+7] = -state.dsdrdT;
                 // d^4f/drho^2dT^2
-                //f_local[idx+8] = 
+                f_local[idx+8] = (-state_dr.dsdrdT + state.dsdrdT) / drho;
 
                 idx += 9;
             }
