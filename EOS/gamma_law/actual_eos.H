@@ -52,8 +52,8 @@ void actual_eos (I input, T& state)
 {
     static_assert(std::is_same<I, eos_input_t>::value, "input must be an eos_input_t");
 
-    // Get the mass of a nucleon from Avogadro's number.
-    const Real m_nucleon = 1.0 / C::n_A;
+    // Get the mass of a nucleon from m_u.
+    const Real m_nucleon = C::m_u;
 
     if constexpr (has_xn<T>::value) {
         if (eos_assume_neutral) {
@@ -198,7 +198,7 @@ void actual_eos (I input, T& state)
 
     // Compute the pressure simply from the ideal gas law, and the
     // specific internal energy using the gamma-law EOS relation.
-    Real pressure = state.rho * state.T * (C::k_B / (state.mu * m_nucleon));
+    Real pressure = state.rho * state.T * C::k_B / (state.mu * m_nucleon);
     Real energy = pressure / (eos_gamma - 1.0) * rhoinv;
     if constexpr (has_pressure<T>::value) {
         state.p = pressure;
@@ -265,6 +265,9 @@ void actual_eos (I input, T& state)
 
             // sound speed
             state.cs = std::sqrt(eos_gamma * state.p * rhoinv);
+            if constexpr (has_G<T>::value) {
+                state.G = 0.5 * (1.0 + eos_gamma);
+            }
         }
     }
 

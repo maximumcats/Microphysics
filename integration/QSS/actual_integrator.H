@@ -4,9 +4,10 @@
 #include <network.H>
 #include <actual_network.H>
 #include <rhs.H>
+#ifndef NEW_NETWORK_IMPLEMENTATION
 #include <actual_rhs.H>
+#endif
 #include <burn_type.H>
-#include <rate_type.H>
 #include <eos_type.H>
 #include <eos.H>
 #include <extern_parameters.H>
