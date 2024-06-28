@@ -5,7 +5,7 @@ jobs:
   burn_cell:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
@@ -17,6 +17,6 @@ jobs:
       - name: Compile and run
         run: |
           mkdir build && cd build
-          cmake .. -DBUILD_UNIT_TEST=true -DBUILD_AMREX=true
+          cmake .. -DBUILD_UNIT_TEST=true -DBUILD_AMReX=true
           make -j2
           ctest --output-on-failure

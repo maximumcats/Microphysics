@@ -53,7 +53,7 @@ void screen_test_C(const Box& bx,
   const int is32 = network_spec_index("sulfur-32");
   if (is32 < 0) amrex::Error("Error: is32 not found");
 
-  const int iar36 = network_spec_index("argon-36");    
+  const int iar36 = network_spec_index("argon-36");
   if (iar36 < 0) amrex::Error("Error: iar36 not found");
 
   const int ica40 = network_spec_index("calcium-40");
@@ -96,18 +96,20 @@ void screen_test_C(const Box& bx,
       ymass(n+1) = xn[n] / aion[n];
     }
 
-    Real temp_zone = std::pow(10.0, std::log10(temp_min) + static_cast<Real>(j)*dlogT);
+    using dual_t = autodiff::dual;
+    dual_t temp_zone = std::pow(10.0, std::log10(temp_min) + static_cast<Real>(j)*dlogT);
+    autodiff::seed(temp_zone);
 
     Real dens_zone = std::pow(10.0, std::log10(dens_min) + static_cast<Real>(i)*dlogrho);
 
     // store default state
     sp(i, j, k, vars.irho) = dens_zone;
-    sp(i, j, k, vars.itemp) = temp_zone;
+    sp(i, j, k, vars.itemp) = static_cast<Real>(temp_zone);
     for (int n = 0; n < NumSpec; n++) {
       sp(i, j, k, vars.ispec+n) = xn[n];
     }
 
-    plasma_state_t pstate;
+    plasma_state_t<dual_t> pstate;
     fill_plasma_state(pstate, temp_zone, dens_zone, ymass);
 
     Real sc1a;

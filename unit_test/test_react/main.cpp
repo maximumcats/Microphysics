@@ -52,8 +52,8 @@ void main_main ()
         // number of cells on each side of a square (or cubic) domain.
         pp.get("n_cell", n_cell);
 
-	print_every_nrhs = 0;
-	pp.query("print_every_nrhs", print_every_nrhs);
+        print_every_nrhs = 0;
+        pp.query("print_every_nrhs", print_every_nrhs);
 
         // The domain is broken into boxes of size max_grid_size
         max_grid_size = 32;
@@ -249,12 +249,10 @@ void main_main ()
     std::string name = "test_react.";
     std::string integrator = buildInfoGetModuleVal(int_idx);
 
-    std::string language = ".cxx";
-
     // Write a plotfile
-    WriteSingleLevelPlotfile(prefix + name + integrator + language, state, names, geom, time, 0);
+    WriteSingleLevelPlotfile(prefix + name + integrator, state, names, geom, time, 0);
 
-    write_job_info(prefix + name + integrator + language);
+    write_job_info(prefix + name + integrator);
 
     // output stats on the number of RHS calls
 
