@@ -3,6 +3,8 @@
 
 #include <AMReX_REAL.H>
 
+using namespace amrex;
+
 struct eos_timmes_t : eos_extra_t {
     Real dpdrdT{};
     Real dsdrdT{};
